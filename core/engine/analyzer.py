@@ -400,3 +400,244 @@ class InsightAnalyzer:
             "financial": self.data_processor.anonymize_data(financial_data),
             "temporal": self.data_processor.anonymize_data(temporal_data),
         }
+
+    def _generate_behavior_temporal_insights(self, pattern: Dict) -> List[Dict]:
+        """Generate insights from behavior-temporal pattern correlations."""
+        insights = []
+
+        behavior_data = pattern["patterns"]["behavior"]
+        temporal_data = pattern["patterns"]["temporal"]
+        correlation = pattern["metadata"]["correlation_coefficient"]
+
+        # Analyze productivity variations across time periods
+        if "productivity" in behavior_data and "hour_of_day" in temporal_data:
+            productivity_by_hour = self._analyze_hourly_productivity(
+                temporal_data["hour_of_day"], behavior_data["productivity"]
+            )
+
+            if productivity_by_hour["significant_pattern"]:
+                insights.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "type": InsightType.BEHAVIOR_TEMPORAL,
+                        "category": "productivity_timing",
+                        "title": "Peak Productivity Hours",
+                        "description": f"Your peak productivity occurs at {productivity_by_hour['peak_hour']:02d}:00. "
+                        f"Consider scheduling important tasks during this time.",
+                        "severity": self._calculate_insight_severity(
+                            productivity_by_hour["pattern_strength"]
+                        ),
+                        "confidence": productivity_by_hour["confidence"],
+                        "metadata": {
+                            "peak_hour": productivity_by_hour["peak_hour"],
+                            "pattern_strength": productivity_by_hour[
+                                "pattern_strength"
+                            ],
+                            "timestamp": datetime.utcnow(),
+                        },
+                    }
+                )
+
+        return insights
+
+    def _generate_single_dimension_insights(self, pattern: Dict) -> List[Dict]:
+        """Generate insights from single-dimension patterns."""
+        insights = []
+
+        pattern_type = pattern["type"]
+        pattern_data = pattern["pattern"]
+        strength = pattern["strength"]
+
+        if pattern_type == "behavior":
+            insights.extend(self._analyze_behavior_pattern(pattern_data, strength))
+        elif pattern_type == "financial":
+            insights.extend(self._analyze_financial_pattern(pattern_data, strength))
+        elif pattern_type == "temporal":
+            insights.extend(self._analyze_temporal_pattern(pattern_data, strength))
+
+        return insights
+
+    def _analyze_behavior_pattern(
+        self, pattern_data: Dict, strength: float
+    ) -> List[Dict]:
+        """Analyze single behavior pattern for insights."""
+        insights = []
+
+        for metric, data in pattern_data.items():
+            if metric == "focus_time":
+                avg_focus = np.mean(list(data.values()))
+                if avg_focus < 45:  # Less than 45 minutes average focus time
+                    insights.append(
+                        {
+                            "id": str(uuid.uuid4()),
+                            "type": InsightType.BEHAVIOR,
+                            "category": "focus",
+                            "title": "Low Focus Time",
+                            "description": f"Your average focus time of {avg_focus:.0f} minutes is below optimal. "
+                            "Consider implementing focused work sessions.",
+                            "severity": "high" if avg_focus < 30 else "medium",
+                            "confidence": strength,
+                            "metadata": {
+                                "avg_focus_time": avg_focus,
+                                "threshold": 45,
+                                "timestamp": datetime.utcnow(),
+                            },
+                        }
+                    )
+
+        return insights
+
+    def _analyze_financial_pattern(
+        self, pattern_data: Dict, strength: float
+    ) -> List[Dict]:
+        """Analyze single financial pattern for insights."""
+        insights = []
+
+        for metric, data in pattern_data.items():
+            if metric == "discretionary_spending":
+                spending_values = list(data.values())
+                avg_spending = np.mean(spending_values)
+                spending_volatility = np.std(spending_values) / avg_spending
+
+                if spending_volatility > 0.3:  # High spending volatility
+                    insights.append(
+                        {
+                            "id": str(uuid.uuid4()),
+                            "type": InsightType.FINANCIAL,
+                            "category": "spending_pattern",
+                            "title": "Inconsistent Spending",
+                            "description": "Your discretionary spending shows high variability. "
+                            "Consider setting a consistent daily budget.",
+                            "severity": "high"
+                            if spending_volatility > 0.5
+                            else "medium",
+                            "confidence": strength,
+                            "metadata": {
+                                "spending_volatility": spending_volatility,
+                                "avg_spending": avg_spending,
+                                "timestamp": datetime.utcnow(),
+                            },
+                        }
+                    )
+
+        return insights
+
+    def _analyze_temporal_pattern(
+        self, pattern_data: Dict, strength: float
+    ) -> List[Dict]:
+        """Analyze single temporal pattern for insights."""
+        insights = []
+
+        for metric, data in pattern_data.items():
+            if metric == "active_hours":
+                active_hours = list(data.values())
+                consistency = self._calculate_schedule_consistency(active_hours)
+
+                if consistency < 0.7:  # Inconsistent schedule
+                    insights.append(
+                        {
+                            "id": str(uuid.uuid4()),
+                            "type": InsightType.TEMPORAL,
+                            "category": "schedule",
+                            "title": "Irregular Schedule",
+                            "description": "Your active hours show significant variation. "
+                            "A more consistent schedule could improve productivity.",
+                            "severity": "high" if consistency < 0.5 else "medium",
+                            "confidence": strength,
+                            "metadata": {
+                                "schedule_consistency": consistency,
+                                "threshold": 0.7,
+                                "timestamp": datetime.utcnow(),
+                            },
+                        }
+                    )
+
+        return insights
+
+    def _calculate_schedule_consistency(self, active_hours: List[float]) -> float:
+        """Calculate consistency score for active hours."""
+        if not active_hours:
+            return 0.0
+
+        # Calculate the standard deviation of active hours
+        std_dev = np.std(active_hours)
+        # Convert to consistency score (0-1)
+        max_std = 8.0  # Maximum expected standard deviation
+        consistency = 1.0 - min(std_dev / max_std, 1.0)
+        return consistency
+
+    def _rank_and_deduplicate_insights(self, insights: List[Dict]) -> List[Dict]:
+        """Rank insights by importance and remove duplicates."""
+        # Remove duplicates based on content similarity
+        unique_insights = []
+        seen_contents = set()
+
+        for insight in insights:
+            content_hash = self._generate_insight_hash(insight)
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                unique_insights.append(insight)
+
+        # Rank by severity and confidence
+        ranked_insights = sorted(
+            unique_insights,
+            key=lambda x: (self._severity_to_score(x["severity"]), x["confidence"]),
+            reverse=True,
+        )
+
+        return ranked_insights
+
+    def _generate_insight_hash(self, insight: Dict) -> str:
+        """Generate a hash for insight content to detect duplicates."""
+        content = f"{insight['type']}:{insight['category']}:{insight['title']}"
+        return hashlib.md5(content.encode()).hexdigest()
+
+    def _severity_to_score(self, severity: str) -> int:
+        """Convert severity string to numeric score."""
+        severity_scores = {"high": 3, "medium": 2, "low": 1}
+        return severity_scores.get(severity, 0)
+
+    def _prioritize_recommendations(self, recommendations: List[Dict]) -> List[Dict]:
+        """Prioritize recommendations based on impact and confidence."""
+        scored_recommendations = []
+
+        for rec in recommendations:
+            impact_score = self._calculate_impact_score(rec)
+            confidence_score = rec["confidence_score"]
+            priority_score = impact_score * confidence_score
+
+            scored_recommendations.append({**rec, "priority_score": priority_score})
+
+        # Sort by priority score
+        prioritized = sorted(
+            scored_recommendations, key=lambda x: x["priority_score"], reverse=True
+        )
+
+        # Remove duplicate recommendations
+        seen_titles = set()
+        unique_recommendations = []
+
+        for rec in prioritized:
+            if rec["title"] not in seen_titles:
+                seen_titles.add(rec["title"])
+                unique_recommendations.append(rec)
+
+        return unique_recommendations
+
+    def _calculate_impact_score(self, recommendation: Dict) -> float:
+        """Calculate potential impact score for a recommendation."""
+        # Base impact score on recommendation type and difficulty
+        base_scores = {
+            RecommendationType.PRODUCTIVITY: 0.8,
+            RecommendationType.FINANCIAL: 0.8,
+            RecommendationType.TIME_MANAGEMENT: 0.7,
+        }
+
+        difficulty_modifiers = {"easy": 1.0, "medium": 0.8, "hard": 0.6}
+
+        base_score = base_scores.get(recommendation["type"], 0.5)
+        difficulty_modifier = difficulty_modifiers.get(
+            recommendation["difficulty"], 0.7
+        )
+
+        return base_score * difficulty_modifier
