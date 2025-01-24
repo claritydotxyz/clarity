@@ -179,11 +179,6 @@ clarity/
 │   ├── setup.sh
 │   ├── build.sh
 │   └── deploy.sh
-├── docs/
-│   ├── api/
-│   ├── architecture/
-│   ├── deployment/
-│   └── development/
 ├── migrations/
 │   ├── init.py
 │   └── versions/
@@ -207,8 +202,6 @@ clarity/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── setup.py
-├── CHANGELOG.md
-├── CONTRIBUTING.md
 ├── LICENSE
 └── README.md
 ```
