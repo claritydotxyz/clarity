@@ -11,13 +11,50 @@ Personal efficiency analysis engine that tracks resource allocation across time 
 - REST API with rate limiting and caching
 - Real-time visualization dashboard
 
-### Requirements
+### Prerequisites
 
-- Python >= 3.9
-- PostgreSQL >= 13
-- Redis >= 6
-- Docker + Compose
-- Node.js >= 18
+- Python 3.9+
+- Poetry for dependency management
+- PostgreSQL 13+
+- Redis for caching
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/clarity.git
+   cd clarity
+   ```
+
+2. Install dependencies:
+   ```bash
+   poetry install
+   ```
+
+3. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configurations
+   ```
+
+4. Initialize the database:
+   ```bash
+   poetry run alembic upgrade head
+   ```
+
+5. Start the development server:
+   ```bash
+   poetry run uvicorn main:app --reload
+   ```
+
+## Architecture
+
+Clarity follows a modular architecture with the following main components:
+
+- **API Layer**: FastAPI-based REST API
+- **Core Engine**: Data collection and processing
+- **ML Pipeline**: Pattern recognition and predictions
+- **UI Layer**: React-based dashboard
 
 ### Quick Setup
 
